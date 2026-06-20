@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#1a1a2e"/>
+<title>ShopSync</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       #0f0f1a;
+    --surface:  #1a1a2e;
+    --card:     #22223b;
+    --accent:   #7c6af7;
+    --accent2:  #4cc9a0;
+    --danger:   #f25c5c;
+    --text:     #e8e8f0;
+    --muted:    #8888aa;
+    --border:   #2e2e4a;
+    --radius:   14px;
+    --font:     'Segoe UI', system-ui, sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px 0;
+    flex-shrink: 0;
+  }
+  .app-title { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+  .app-title span { color: var(--accent); }
+
+  /* ── Server row ── */
+  .server-row {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; padding-bottom: 10px;
+  }
+  .server-row input {
+    flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 7px 10px; font-size: 0.78rem; outline: none;
+  }
+  .server-row input:focus { border-color: var(--accent); }
+  #sync-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 7px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  #sync-btn:active { opacity: 0.8; }
+  #sync-status { font-size: 0.72rem; color: var(--muted); min-width: 6ch; text-align: right; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .dot.ok  { background: var(--accent2); }
+  .dot.err { background: var(--danger); }
+  .spin { display: inline-block; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Tabs ── */
+  nav.tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  nav.tabs button {
+    flex: 1; padding: 10px 4px; background: none; border: none; color: var(--muted);
+    font-size: 0.82rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Panels ── */
+  .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .panel.active { display: flex; }
+  .scroll { overflow-y: auto; flex: 1; padding: 12px 14px; }
+  .scroll::-webkit-scrollbar { width: 4px; }
+  .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 13px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;
+  }
+  .card-body { flex: 1; min-width: 0; }
+  .card-title { font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .badge {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 2px 8px; font-size: 0.72rem; color: var(--muted); white-space: nowrap;
+  }
+  .badge.store { background: rgba(124,106,247,.15); color: var(--accent); border-color: rgba(124,106,247,.3); }
+
+  /* ── Icon buttons ── */
+  .icon-btn {
+    background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px;
+    color: var(--muted); font-size: 1.1rem; line-height: 1; transition: background .1s, color .1s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { background: var(--border); color: var(--text); }
+  .icon-btn.danger:hover { color: var(--danger); }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed; bottom: 20px; right: 18px; z-index: 100;
+    width: 52px; height: 52px; border-radius: 50%; background: var(--accent);
+    border: none; color: #fff; font-size: 1.6rem; cursor: pointer; box-shadow: 0 4px 20px rgba(124,106,247,.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab:active { transform: scale(.93); }
+
+  /* ── Bottom action bar ── */
+  .action-bar {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 14px; display: flex; gap: 8px; flex-shrink: 0;
+  }
+  .btn {
+    flex: 1; padding: 12px 10px; border: none; border-radius: var(--radius);
+    font-size: 0.85rem; font-weight: 700; cursor: pointer; letter-spacing: .3px;
+    transition: opacity .15s;
+  }
+  .btn:active { opacity: .8; }
+  .btn-accent  { background: var(--accent);  color: #fff; }
+  .btn-accent2 { background: var(--accent2); color: #111; }
+  .btn-danger  { background: var(--danger);  color: #fff; }
+  .btn-muted   { background: var(--border);  color: var(--text); }
+
+  /* ── Store mode checkbox ── */
+  .store-check {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--accent);
+    background: none; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.9rem;
+    transition: background .15s;
+  }
+  .store-check.checked { background: var(--accent2); border-color: var(--accent2); }
+  .card.checked-card .card-title { text-decoration: line-through; color: var(--muted); }
+
+  /* ── Modal ── */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .sheet {
+    background: var(--surface); border-radius: 20px 20px 0 0; width: 100%; padding: 24px 18px 32px;
+    transform: translateY(30px); transition: transform .25s;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); padding: 11px 13px; font-size: 0.9rem; outline: none;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: var(--card); }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .sheet-actions .btn { flex: 1; padding: 14px; font-size: 0.9rem; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty .icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty p { font-size: 0.9rem; line-height: 1.6; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 18px; font-size: 0.82rem; color: var(--text);
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 300;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--accent2); }
+  #toast.error   { border-color: var(--danger); }
+
+  /* ── In-store mode banner ── */
+  #store-banner {
+    display: none; background: rgba(76,201,160,.12); border-bottom: 1px solid rgba(76,201,160,.3);
+    padding: 8px 14px; font-size: 0.8rem; color: var(--accent2); font-weight: 600;
+    text-align: center;
+  }
+  body.store-mode #store-banner { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <header>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span class="app-title">Shop<span>Sync</span></span>
+      <span id="sync-status"><span class="dot" id="sync-dot"></span></span>
+    </div>
+    <div class="server-row">
+      <input type="text" id="server-url" placeholder="Server URL  e.g. http://192.168.1.10:5000" autocomplete="off" spellcheck="false"/>
+      <button id="sync-btn" onclick="syncAll()">
+        <span id="sync-icon">⟳</span> Sync
+      </button>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="active" onclick="switchTab('shopping')">🛒 Shopping List</button>
+    <button onclick="switchTab('database')">📦 Product DB</button>
+  </nav>
+
+  <!-- Store banner -->
+  <div id="store-banner">🏪 In-store mode — tap items as you find them</div>
+
+  <!-- SHOPPING PANEL -->
+  <div id="panel-shopping" class="panel active">
+    <div class="scroll" id="shopping-list-container">
+      <div class="empty" id="shopping-empty">
+        <div class="icon">🛍️</div>
+        <p>Your shopping list is empty.<br>Tap + to add products.</p>
+      </div>
+    </div>
+    <div class="action-bar" id="shopping-actions-normal">
+      <button class="btn btn-accent" onclick="openAddToList()">+ Add Product</button>
+      <button class="btn btn-accent2" onclick="goToStore()">🏪 In Store</button>
+    </div>
+    <div class="action-bar" id="shopping-actions-store" style="display:none">
+      <button class="btn btn-muted" onclick="exitStore()">← Back</button>
+      <button class="btn btn-danger" onclick="finishShopping()">✓ Finish Shopping</button>
+    </div>
+  </div>
+
+  <!-- DATABASE PANEL -->
+  <div id="panel-database" class="panel">
+    <div class="scroll" id="database-list-container">
+      <div class="empty" id="db-empty">
+        <div class="icon">📦</div>
+        <p>No products yet.<br>Tap + to add your first product.</p>
+      </div>
+    </div>
+    <button class="fab" onclick="openAddProduct()">＋</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- MODAL: Add Product to DB -->
+<div class="overlay" id="modal-product" onclick="closeModalOutside(event,'modal-product')">
+  <div class="sheet">
+    <h3 id="modal-product-title">Add Product</h3>
+    <div class="field"><label>Product Name</label><input type="text" id="p-name" placeholder="e.g. Whole Milk"/></div>
+    <div class="field"><label>Unit of Measure</label><input type="text" id="p-unit" placeholder="e.g. liters, kg, pcs"/></div>
+    <div class="field"><label>Store</label><input type="text" id="p-store" placeholder="e.g. Albert Heijn"/></div>
+    <div class="sheet-actions">
+      <button class="btn btn-muted" onclick="closeModal('modal-product')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveProduct()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Add to Shopping List -->
+<div class="overlay" id="modal-list" onclick="closeModalOutside(event,'modal-list')">
+  <div class="sheet">
+    <h3>Add to Shopping List</h3>
+    <div class="field">
+      <label>Product</label>
+      <select id="l-product"><option value="">— select —</option></select>
+    </div>
+    <div class="field">
+      <label>Quantity</label>
+      <input type="number" id="l-qty" value="1" min="0.1" step="0.1"/>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-muted" onclick="closeModal('modal-list')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveToList()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  State
+// ════════════════════════════════════════════════════════
+const LS = {
+  get(k, fb) { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } },
+  set(k, v)  { localStorage.setItem(k, JSON.stringify(v)); }
+};
+
+let products     = LS.get('products', []);
+let shoppingList = LS.get('shopping', []);
+let serverUrl    = LS.get('serverUrl', '');
+let editingPid   = null;   // product id being edited
+let storeMode    = false;
+
+// ════════════════════════════════════════════════════════
+//  Init
+// ════════════════════════════════════════════════════════
+document.getElementById('server-url').value = serverUrl;
+document.getElementById('server-url').addEventListener('change', e => {
+  serverUrl = e.target.value.trim().replace(/\/$/, '');
+  LS.set('serverUrl', serverUrl);
+});
+
+renderDB();
+renderShopping();
+
+// ════════════════════════════════════════════════════════
+//  Tabs
+// ════════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById(`panel-${tab}`).classList.add('active');
+  document.querySelectorAll('nav.tabs button')[tab === 'shopping' ? 0 : 1].classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════
+//  Render: Product Database
+// ════════════════════════════════════════════════════════
+function renderDB() {
+  const container = document.getElementById('database-list-container');
+  const empty     = document.getElementById('db-empty');
+  // Remove old cards but keep empty state node
+  [...container.children].forEach(c => { if (c !== empty) c.remove(); });
+  empty.style.display = products.length ? 'none' : 'block';
+
+  products.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-body">
+        <div class="card-title">${esc(p.name)}</div>
+        <div class="card-sub">📏 ${esc(p.unit)}</div>
+      </div>
+      <span class="badge store">🏪 ${esc(p.store)}</span>
+      <button class="icon-btn" title="Edit" onclick="editProduct(${p.id})">✏️</button>
+      <button class="icon-btn danger" title="Delete" onclick="deleteProduct(${p.id})">🗑️</button>
+    `;
+    container.appendChild(card);
+  });
+  LS.set('products', products);
+}
+
+// ════════════════════════════════════════════════════════
+//  Render: Shopping List
+// ════════════════════════════════════════════════════════
+function renderShopping() {
+  const container = document.getElementById('shopping-list-container');
+  const empty     = document.getElementById('shopping-empty');
+  [...container.children].forEach(c => { if (c !== empty) c.remove(); });
+  empty.style.display = shoppingList.length ? 'none' : 'block';
+
+  shoppingList.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'card' + (item.checked ? ' checked-card' : '');
+    card.innerHTML = storeMode ? storeCard(item) : listCard(item);
+    container.appendChild(card);
+  });
+  LS.set('shopping', shoppingList);
+}
+
+function listCard(item) {
+  return `
+    <div class="card-body">
+      <div class="card-title">${esc(item.name)}</div>
+      <div class="card-sub">🏪 ${esc(item.store)}  •  ${item.quantity} ${esc(item.unit)}</div>
+    </div>
+    <button class="icon-btn danger" onclick="removeFromList(${item.id})">🗑️</button>
+  `;
+}
+
+function storeCard(item) {
+  const chk = item.checked
+    ? `<div class="store-check checked" onclick="toggleCheck(${item.id})">✓</div>`
+    : `<div class="store-check" onclick="toggleCheck(${item.id})"></div>`;
+  return `
+    ${chk}
+    <div class="card-body">
+      <div class="card-title">${esc(item.name)}</div>
+      <div class="card-sub">${item.quantity} ${esc(item.unit)}  •  🏪 ${esc(item.store)}</div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════════════════
+//  Product DB CRUD
+// ════════════════════════════════════════════════════════
+function openAddProduct() {
+  editingPid = null;
+  document.getElementById('modal-product-title').textContent = 'Add Product';
+  ['p-name','p-unit','p-store'].forEach(id => document.getElementById(id).value = '');
+  openModal('modal-product');
+}
+
+function editProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  editingPid = id;
+  document.getElementById('modal-product-title').textContent = 'Edit Product';
+  document.getElementById('p-name').value  = p.name;
+  document.getElementById('p-unit').value  = p.unit;
+  document.getElementById('p-store').value = p.store;
+  openModal('modal-product');
+}
+
+async function saveProduct() {
+  const name  = document.getElementById('p-name').value.trim();
+  const unit  = document.getElementById('p-unit').value.trim();
+  const store = document.getElementById('p-store').value.trim();
+  if (!name || !unit || !store) { toast('Fill in all fields', 'error'); return; }
+
+  if (serverUrl) {
+    try {
+      let res;
+      if (editingPid) {
+        res = await apiFetch(`/products/${editingPid}`, 'PUT', {name, unit, store});
+        const idx = products.findIndex(x => x.id === editingPid);
+        if (idx !== -1) products[idx] = res;
+      } else {
+        res = await apiFetch('/products', 'POST', {name, unit, store});
+        products.push(res);
+      }
+      toast('Saved to server ✓', 'success');
+    } catch(e) { toast('Server error — saved locally', 'error'); localSaveProduct(name, unit, store); }
+  } else {
+    localSaveProduct(name, unit, store);
+    toast('Saved locally', 'success');
+  }
+  closeModal('modal-product');
+  renderDB();
+}
+
+function localSaveProduct(name, unit, store) {
+  if (editingPid) {
+    const p = products.find(x => x.id === editingPid);
+    if (p) { p.name = name; p.unit = unit; p.store = store; }
+  } else {
+    const id = Date.now();
+    products.push({id, name, unit, store});
+  }
+}
+
+async function deleteProduct(id) {
+  if (!confirm('Remove this product from the database?')) return;
+  if (serverUrl) {
+    try { await apiFetch(`/products/${id}`, 'DELETE'); } catch {}
+  }
+  products = products.filter(p => p.id !== id);
+  shoppingList = shoppingList.filter(s => s.product_id !== id);
+  renderDB(); renderShopping();
+  toast('Product deleted');
+}
+
+// ════════════════════════════════════════════════════════
+//  Shopping List CRUD
+// ════════════════════════════════════════════════════════
+function openAddToList() {
+  const sel = document.getElementById('l-product');
+  sel.innerHTML = '<option value="">— select a product —</option>';
+  products.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = `${p.name} (${p.store})`;
+    sel.appendChild(o);
+  });
+  document.getElementById('l-qty').value = 1;
+  openModal('modal-list');
+}
+
+async function saveToList() {
+  const pid = parseInt(document.getElementById('l-product').value);
+  const qty = parseFloat(document.getElementById('l-qty').value);
+  if (!pid || isNaN(qty) || qty <= 0) { toast('Select a product and valid quantity', 'error'); return; }
+
+  const product = products.find(p => p.id === pid);
+  if (!product) return;
+
+  if (serverUrl) {
+    try {
+      const res = await apiFetch('/shopping', 'POST', {product_id: pid, quantity: qty});
+      mergeShoppingItem(res);
+      toast('Added ✓', 'success');
+    } catch { localAddToList(product, qty); toast('Added locally', 'success'); }
+  } else {
+    localAddToList(product, qty);
+    toast('Added', 'success');
+  }
+  closeModal('modal-list');
+  renderShopping();
+}
+
+function localAddToList(product, qty) {
+  const existing = shoppingList.find(s => s.product_id === product.id);
+  if (existing) { existing.quantity = qty; }
+  else {
+    shoppingList.push({
+      id: Date.now(), product_id: product.id, name: product.name,
+      unit: product.unit, store: product.store, quantity: qty, checked: false
+    });
+  }
+}
+
+function mergeShoppingItem(item) {
+  const idx = shoppingList.findIndex(s => s.id === item.id || s.product_id === item.product_id);
+  if (idx !== -1) shoppingList[idx] = item;
+  else shoppingList.push(item);
+}
+
+async function removeFromList(id) {
+  if (serverUrl) {
+    try { await apiFetch(`/shopping/${id}`, 'DELETE'); } catch {}
+  }
+  shoppingList = shoppingList.filter(s => s.id !== id);
+  renderShopping();
+}
+
+// ════════════════════════════════════════════════════════
+//  Store mode
+// ════════════════════════════════════════════════════════
+async function goToStore() {
+  if (!shoppingList.length) { toast('Shopping list is empty', 'error'); return; }
+  if (serverUrl) {
+    try { await apiFetch('/shopping/activate', 'POST'); } catch {}
+  }
+  shoppingList.forEach(s => { s.in_store = true; s.checked = false; });
+  storeMode = true;
+  document.body.classList.add('store-mode');
+  document.getElementById('shopping-actions-normal').style.display = 'none';
+  document.getElementById('shopping-actions-store').style.display  = 'flex';
+  renderShopping();
+}
+
+function exitStore() {
+  storeMode = false;
+  document.body.classList.remove('store-mode');
+  shoppingList.forEach(s => { s.in_store = false; s.checked = false; });
+  document.getElementById('shopping-actions-normal').style.display = 'flex';
+  document.getElementById('shopping-actions-store').style.display  = 'none';
+  renderShopping();
+}
+
+async function toggleCheck(id) {
+  const item = shoppingList.find(s => s.id === id);
+  if (!item) return;
+  item.checked = !item.checked;
+  if (serverUrl) {
+    try { await apiFetch(`/shopping/${id}`, 'PUT', {checked: item.checked ? 1 : 0}); } catch {}
+  }
+  renderShopping();
+}
+
+async function finishShopping() {
+  const checked = shoppingList.filter(s => s.checked);
+  if (!checked.length) { toast('Nothing is checked off yet', 'error'); return; }
+  if (!confirm(`Remove ${checked.length} purchased item(s) from the list?`)) return;
+  if (serverUrl) {
+    try { await apiFetch('/shopping/finish', 'POST'); } catch {}
+  }
+  shoppingList = shoppingList.filter(s => !s.checked);
+  if (!shoppingList.length) exitStore();
+  else renderShopping();
+  toast(`${checked.length} item(s) removed ✓`, 'success');
+  LS.set('shopping', shoppingList);
+}
+
+// ════════════════════════════════════════════════════════
+//  Sync
+// ════════════════════════════════════════════════════════
+async function syncAll() {
+  if (!serverUrl) { toast('Enter a server URL first', 'error'); return; }
+  setSync('loading');
+  try {
+    const data = await apiFetch('/sync', 'GET');
+    products     = data.products;
+    shoppingList = data.shopping.map(s => ({...s, checked: !!s.checked}));
+    renderDB();
+    renderShopping();
+    setSync('ok');
+    toast('Synced ✓', 'success');
+  } catch(e) {
+    setSync('err');
+    toast('Sync failed: ' + e.message, 'error');
+  }
+}
+
+function setSync(state) {
+  const dot  = document.getElementById('sync-dot');
+  const icon = document.getElementById('sync-icon');
+  dot.className  = 'dot ' + (state === 'ok' ? 'ok' : state === 'err' ? 'err' : '');
+  icon.className = state === 'loading' ? 'spin' : '';
+  icon.textContent = '⟳';
+}
+
+// ════════════════════════════════════════════════════════
+//  API helpers
+// ════════════════════════════════════════════════════════
+async function apiFetch(path, method = 'GET', body = null) {
+  const opts = { method, headers: {'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(serverUrl + path, opts);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ════════════════════════════════════════════════════════
+//  Modal helpers
+// ════════════════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModalOutside(e, id) { if (e.target === document.getElementById(id)) closeModal(id); }
+
+// ════════════════════════════════════════════════════════
+//  Toast
+// ════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 2400);
+}
+
+// ════════════════════════════════════════════════════════
+//  Utils
+// ════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
