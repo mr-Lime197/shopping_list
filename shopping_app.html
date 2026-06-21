@@ -483,29 +483,21 @@ function openAddToList() {
 async function saveToList() {
   const pid = parseInt(document.getElementById('l-product').value);
   const qty = parseFloat(document.getElementById('l-qty').value);
-  if (!pid || isNaN(qty) || qty <= 0) {
-    toast('Select a product and valid quantity', 'error');
-    return;
-  }
+  if (!pid || isNaN(qty) || qty <= 0) { toast('Select a product and valid quantity', 'error'); return; }
 
   const product = products.find(p => p.id === pid);
   if (!product) return;
 
-  // Локально обновляем список (гарантированно)
-  localAddToList(product, qty);
-
-  // Если есть сервер – отправляем запрос, но не ждём результата для рендера
   if (serverUrl) {
     try {
-      await apiFetch('/shopping', 'POST', { product_id: pid, quantity: qty });
+      const res = await apiFetch('/shopping', 'POST', {product_id: pid, quantity: qty});
+      mergeShoppingItem(res);
       toast('Added ✓', 'success');
-    } catch {
-      toast('Added locally (server error)', 'success');
-    }
+    } catch { localAddToList(product, qty); toast('Added locally', 'success'); }
   } else {
+    localAddToList(product, qty);
     toast('Added', 'success');
   }
-
   closeModal('modal-list');
   renderShopping();
 }
@@ -560,11 +552,13 @@ function exitStore() {
   renderShopping();
 }
 
-function toggleCheck(id) {
+async function toggleCheck(id) {
   const item = shoppingList.find(s => s.id === id);
   if (!item) return;
   item.checked = !item.checked;
-  LS.set('shopping', shoppingList);
+  if (serverUrl) {
+    try { await apiFetch(`/shopping/${id}`, 'PUT', {checked: item.checked ? 1 : 0}); } catch {}
+  }
   renderShopping();
 }
 
@@ -582,7 +576,7 @@ async function finishShopping() {
   if (serverUrl) {
     try {
       await apiFetch('/shopping/finish', 'POST');
-    } catch (e) {
+    } catch{
       // Игнорируем ошибку сервера, но продолжаем локально
     }
   }
