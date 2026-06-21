@@ -1,0 +1,11 @@
+Добавьте следующие строки в AndroidManifest.xml:
+
+<!-- Разрешение на доступ в интернет -->
+<uses-permission android:name="android.permission.INTERNET" />
+
+<!-- Внутри тега <application> разрешаем HTTP -->
+<application
+    android:usesCleartextTraffic="true"
+    ... >
+    ...
+</application>
