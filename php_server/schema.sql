@@ -1,11 +1,7 @@
 -- Shopping List Sync — MySQL schema
 -- Run once: mysql -u root -p < schema.sql
 
-CREATE DATABASE IF NOT EXISTS shopping
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-
-USE shopping;
+USE ttwallsk_joomla674;
 
 CREATE TABLE IF NOT EXISTS products (
     id      INT UNSIGNED    NOT NULL AUTO_INCREMENT,

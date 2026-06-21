@@ -30,9 +30,9 @@
 
 define('DB_HOST', '127.0.0.1');
 define('DB_PORT', '3306');
-define('DB_NAME', 'shopping');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_NAME', 'ttwallsk_joomla674');
+define('DB_USER', 'ttwallsk_us8d6');
+define('DB_PASS', 'dss@Yuy!ysh');
 define('DB_CHARSET', 'utf8mb4');
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // Strip query string and leading slash from the path
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$uri = '/' . ltrim($uri, '/');
+$uri = '/' . ltrim(substr($uri, 8), '/');
 
 // Remove a sub-directory prefix if the app is not at the web root
 // e.g. if deployed at /shopping/ set $base = '/shopping'
@@ -98,7 +98,6 @@ if ($base && str_starts_with($uri, $base)) {
     $uri = substr($uri, strlen($base));
 }
 $uri = '/' . ltrim($uri, '/');
-
 // ── Products ──────────────────────────────────────────────────────────────────
 
 if ($uri === '/products' && $method === 'GET') {
@@ -148,7 +147,7 @@ if (preg_match('#^/products/(\d+)$#', $uri, $m)) {
         $row = $db->prepare('SELECT * FROM products WHERE id = ?');
         $row->execute([$pid]);
         $product = $row->fetch();
-        if (!$product) json_response(['error' => 'Not found'], 404);
+        if (!$product) json_response(['error1' => 'Not found'], 404);
         json_response($product);
     }
 
@@ -264,4 +263,4 @@ if ($uri === '/sync' && $method === 'GET') {
 
 // ── 404 fallthrough ───────────────────────────────────────────────────────────
 
-json_response(['error' => 'Not found'], 404);
+json_response(['error2' => 'Not found'], 404);
