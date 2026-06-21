@@ -1,0 +1,15 @@
+Three files, ready to deploy. Here's what changed and what stayed the same:
+Same API surface — every endpoint, HTTP method, status code, and JSON shape is identical to the Flask original, so no client changes needed.
+Setup steps:
+
+Edit the DB_* constants at the top of index.php with your MySQL credentials.
+Run schema.sql once to create the database and tables: mysql -u root -p < schema.sql
+Drop index.php and .htaccess into your web root (or a subdirectory). The .htaccess routes all requests through index.php via mod_rewrite. For nginx, add try_files $uri $uri/ /index.php?$query_string; to your location block.
+
+Notable differences from the Python version:
+
+Uses PDO with prepared statements throughout — no raw string interpolation.
+MySQL's DECIMAL(10,3) replaces SQLite's REAL for quantity, giving exact decimal storage.
+The foreign key on shopping_list.product_id uses ON DELETE CASCADE, so deleting a product automatically cleans up its shopping list entries.
+The 23000 PDO error code catches MySQL's duplicate-key violation (equivalent to sqlite3.IntegrityError) and returns the same 409 response.
+CORS is handled with plain headers instead of Flask-CORS, with the same permissive defaults.
