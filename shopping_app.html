@@ -348,16 +348,28 @@ function renderDB() {
 // ════════════════════════════════════════════════════════
 function renderShopping() {
   const container = document.getElementById('shopping-list-container');
-  const empty     = document.getElementById('shopping-empty');
-  [...container.children].forEach(c => { if (c !== empty) c.remove(); });
-  empty.style.display = shoppingList.length ? 'none' : 'block';
+  // Полностью очищаем контейнер
+  container.innerHTML = '';
 
-  shoppingList.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'card' + (item.checked ? ' checked-card' : '');
-    card.innerHTML = storeMode ? storeCard(item) : listCard(item);
-    container.appendChild(card);
-  });
+  if (!shoppingList.length) {
+    // Показываем пустое состояние
+    container.innerHTML = `
+      <div class="empty" id="shopping-empty">
+        <div class="icon">🛍️</div>
+        <p>Your shopping list is empty.<br>Tap + to add products.</p>
+      </div>
+    `;
+  } else {
+    // Добавляем карточки
+    shoppingList.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'card' + (item.checked ? ' checked-card' : '');
+      card.innerHTML = storeMode ? storeCard(item) : listCard(item);
+      container.appendChild(card);
+    });
+  }
+
+  // Сохраняем в localStorage
   LS.set('shopping', shoppingList);
 }
 
@@ -471,21 +483,29 @@ function openAddToList() {
 async function saveToList() {
   const pid = parseInt(document.getElementById('l-product').value);
   const qty = parseFloat(document.getElementById('l-qty').value);
-  if (!pid || isNaN(qty) || qty <= 0) { toast('Select a product and valid quantity', 'error'); return; }
+  if (!pid || isNaN(qty) || qty <= 0) {
+    toast('Select a product and valid quantity', 'error');
+    return;
+  }
 
   const product = products.find(p => p.id === pid);
   if (!product) return;
 
+  // Локально обновляем список (гарантированно)
+  localAddToList(product, qty);
+
+  // Если есть сервер – отправляем запрос, но не ждём результата для рендера
   if (serverUrl) {
     try {
-      const res = await apiFetch('/shopping', 'POST', {product_id: pid, quantity: qty});
-      mergeShoppingItem(res);
+      await apiFetch('/shopping', 'POST', { product_id: pid, quantity: qty });
       toast('Added ✓', 'success');
-    } catch { localAddToList(product, qty); toast('Added locally', 'success'); }
+    } catch {
+      toast('Added locally (server error)', 'success');
+    }
   } else {
-    localAddToList(product, qty);
     toast('Added', 'success');
   }
+
   closeModal('modal-list');
   renderShopping();
 }
@@ -540,26 +560,47 @@ function exitStore() {
   renderShopping();
 }
 
-async function toggleCheck(id) {
+function toggleCheck(id) {
   const item = shoppingList.find(s => s.id === id);
   if (!item) return;
   item.checked = !item.checked;
-  if (serverUrl) {
-    try { await apiFetch(`/shopping/${id}`, 'PUT', {checked: item.checked ? 1 : 0}); } catch {}
-  }
+  LS.set('shopping', shoppingList);
   renderShopping();
 }
 
 async function finishShopping() {
-  const checked = shoppingList.filter(s => s.checked);
-  if (!checked.length) { toast('Nothing is checked off yet', 'error'); return; }
-  if (!confirm(`Remove ${checked.length} purchased item(s) from the list?`)) return;
-  if (serverUrl) {
-    try { await apiFetch('/shopping/finish', 'POST'); } catch {}
+  // Фильтруем только те, у которых checked === true
+  const checked = shoppingList.filter(s => s.checked === true);
+  if (!checked.length) {
+    toast('Nothing is checked off yet', 'error');
+    return;
   }
-  shoppingList = shoppingList.filter(s => !s.checked);
-  if (!shoppingList.length) exitStore();
-  else renderShopping();
+  if (!confirm(`Remove ${checked.length} purchased item(s) from the list?`)) {
+    return;
+  }
+
+  if (serverUrl) {
+    try {
+      await apiFetch('/shopping/finish', 'POST');
+    } catch (e) {
+      // Игнорируем ошибку сервера, но продолжаем локально
+    }
+  }
+
+  // Удаляем отмеченные
+  shoppingList = shoppingList.filter(s => s.checked !== true);
+
+  // Если список стал пустым – выходим из магазина
+  if (!shoppingList.length) {
+    exitStore(); // exitStore вызывает renderShopping()
+  } else {
+    // Иначе просто перерисовываем и явно обновляем панели (на случай, если storeMode остался)
+    renderShopping();
+    // Убедимся, что кнопки в режиме магазина видны
+    document.getElementById('shopping-actions-normal').style.display = 'none';
+    document.getElementById('shopping-actions-store').style.display = 'flex';
+  }
+
   toast(`${checked.length} item(s) removed ✓`, 'success');
   LS.set('shopping', shoppingList);
 }
